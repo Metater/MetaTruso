@@ -1,6 +1,7 @@
 var builder = WebApplication.CreateBuilder();
 
 string accessKey = args[0];
+string filesPath = args[1];
 
 var app = builder.Build();
 
@@ -30,6 +31,7 @@ app.Use(async (ctx, next) =>
         await ctx.Response.WriteAsync("401");
         return;
     }
+    ctx.Features.Get<IHttpMaxRequestBodySizeFeature>()!.MaxRequestBodySize = null;
     await next(ctx);
 });
 
@@ -41,48 +43,65 @@ app.MapPost("/upload", async ctx =>
         await ctx.Response.WriteAsync("400");
         return;
     }
-    Console.WriteLine(ctx.Request.Query["file"]);
-    using (var ms = new MemoryStream())
+    Console.WriteLine($"[MetaTruso] Got upload request for {ctx.Request.Query["file"]}");
+    using GZipStream decompressor = new(ctx.Request.Body, CompressionMode.Decompress);
+    string path = filesPath + ctx.Request.Query["file"];
+    using (FileStream output = File.Create(path))
     {
-        try
-        {
-            string output = args[1] + ctx.Request.Query["file"];
-            Console.WriteLine(output);
-            await ctx.Request.Body.CopyToAsync(ms);
-            byte[] data = ms.ToArray();
-            Console.WriteLine(data.Length);
-            await File.WriteAllBytesAsync(args[1] + ctx.Request.Query["file"], data);
-            Console.WriteLine("Done!??");
-        }
-        catch (Exception e)
-        {
-            Console.WriteLine(e.StackTrace);
-        }
+        await decompressor.CopyToAsync(output);
     }
-    Console.WriteLine("done?!@#123");
     await ctx.Response.WriteAsync("200");
 });
 
 app.MapGet("/delete", async ctx =>
 {
-    if (!ctx.Request.Query.ContainsKey("folder"))
+    if (!ctx.Request.Query.ContainsKey("file"))
     {
         ctx.Response.StatusCode = 400;
         await ctx.Response.WriteAsync("400");
         return;
     }
-    Directory.Delete(args[1] + ctx.Request.Query["folder"], true);
+    Console.WriteLine($"[MetaTruso] Got delete request");
+    string[] files = ctx.Request.Query["file"].ToString().Split(',');
+    foreach (string file in files)
+    {
+        string path = filesPath + file;
+        if (File.Exists(path))
+        {
+            File.Delete(path);
+            Console.WriteLine($"[MetaTruso] Deleting file at {path}");
+        }
+        else
+        {
+            Console.WriteLine($"[MetaTruso] Tried to delete file at {path}");
+        }
+    }
+    await ctx.Response.WriteAsync("200");
 });
 
-HttpClient client = new();
-
-app.MapGet("/run", async ctx =>
+app.MapGet("/execute", async ctx =>
 {
-    //var content = new ByteArrayContent(new byte[] { 0x48, 0x65, 0x6c, 0x6c, 0x6f, 0x2c, 0x20, 0x57, 0x6f, 0x72, 0x6c, 0x64, 0x21 });
-    var content = new StringContent(ctx.Request.Query["data"]);
-    var res = await client.PostAsync("https://localhost:5001/post", content);
-    string strRes = await res.Content.ReadAsStringAsync();
-    await ctx.Response.WriteAsync(strRes);
+    if (!ctx.Request.Query.ContainsKey("script"))
+    {
+        ctx.Response.StatusCode = 400;
+        await ctx.Response.WriteAsync("400");
+        return;
+    }
+    string path = filesPath + ctx.Request.Query["script"];
+    Console.WriteLine($"[MetaTruso] Got execute request for {path}");
+    if (!File.Exists(path))
+    {
+        ctx.Response.StatusCode = 400;
+        await ctx.Response.WriteAsync("400");
+        return;
+    }
+    Process? process = Process.Start(new ProcessStartInfo()
+    {
+        UseShellExecute = false,
+        Arguments = path
+    });
+    await process!.WaitForExitAsync();
+    await ctx.Response.WriteAsync("200");
 });
 
 await app.RunAsync();
