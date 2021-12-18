@@ -13,7 +13,7 @@ if (!app.Environment.IsDevelopment())
 
 app.Use(async (ctx, next) =>
 {
-    if (ctx.Request.Host.ToString() != "db.team3489.tk:8443")
+    if (ctx.Request.Host.ToString() != "turris.ml:8443")
     {
         ctx.Response.StatusCode = 403;
         await ctx.Response.WriteAsync("403");
@@ -44,11 +44,11 @@ app.MapPost("/upload", async ctx =>
         return;
     }
     Console.WriteLine($"[MetaTruso] Got upload request for {ctx.Request.Query["file"]}");
-    using GZipStream decompressor = new(ctx.Request.Body, CompressionMode.Decompress);
     string path = filesPath + ctx.Request.Query["file"];
-    using (FileStream output = File.Create(path))
+    using FileStream fo = File.Create(path);
+    using (GZipStream fg = new(ctx.Request.Body, CompressionMode.Decompress))
     {
-        await decompressor.CopyToAsync(output);
+        await fg.CopyToAsync(fo);
     }
     await ctx.Response.WriteAsync("200");
 });
@@ -98,7 +98,8 @@ app.MapGet("/execute", async ctx =>
     Process? process = Process.Start(new ProcessStartInfo()
     {
         UseShellExecute = false,
-        Arguments = path
+        FileName = "sh",
+        Arguments = path,
     });
     await process!.WaitForExitAsync();
     await ctx.Response.WriteAsync("200");
