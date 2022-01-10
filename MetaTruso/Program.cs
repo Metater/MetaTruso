@@ -5,6 +5,9 @@ string filesPath = args[1];
 
 var app = builder.Build();
 
+// TODO: Do extra to ensure directories and files exist before writing to avoid
+// having to create them manually when adding a new truso
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseHsts();
@@ -13,7 +16,7 @@ if (!app.Environment.IsDevelopment())
 
 app.Use(async (ctx, next) =>
 {
-    if (ctx.Request.Host.ToString() != "turris.ml:8443")
+    if (ctx.Request.Host.ToString() != "api.team3489.tk:8443")
     {
         ctx.Response.StatusCode = 403;
         await ctx.Response.WriteAsync("403");
