@@ -33,6 +33,6 @@ public class MetaTruso
 
     private string GetUri(string ep, string query)
     {
-        return $"https://turris.ml:8443/{ep}?key={trusoKey}&{query}";
+        return $"https://api.team3489.tk:8443/{ep}?key={trusoKey}&{query}";
     }
 }
